@@ -1,12 +1,12 @@
 {
   "name": "간이스프링클러설비 펌프 용량 계산서",
-  "short_name": "간이스프링클러",
-  "description": "NFPC 103A / NFTC 103A 기준 간이스프링클러설비 펌프 용량 계산 전용 앱 — ENGINEER KIM MANMIN",
+  "short_name": "간이스프링",
+  "description": "NFPC 103A / NFTC 103A 기준 간이스프링클러설비 펌프 용량 계산서 — ENGINEER KIM MANMIN",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f1f5f9",
+  "background_color": "#fff7ed",
   "theme_color": "#d97706",
   "lang": "ko",
   "categories": ["utilities", "productivity"],
@@ -29,6 +29,5 @@
       "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }]
     }
   ],
-  "screenshots": [],
   "prefer_related_applications": false
 }

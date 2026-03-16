@@ -1,14 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════
    간이스프링클러설비 펌프 용량 계산서 — Service Worker
-   ENGINEER KIM MANMIN · Ver-2.0
-   전략: Cache-First (정적 자산) + Network-First (외부 CDN)
+   NFPC 103A / NFTC 103A 기준 | ENGINEER KIM MANMIN
+   전략: Cache-First (로컬 자산) + Network-First (외부 CDN)
    ═══════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'easy-sprinkler-v2.0';
-const CDN_CACHE     = 'easy-sprinkler-cdn-v2.0';
-const OFFLINE_PAGE  = './index.html';
+const CACHE_NAME   = 'easy-sprinkler-v1.0';
+const CDN_CACHE    = 'easy-sprinkler-cdn-v1.0';
+const OFFLINE_PAGE = './index.html';
 
-/* ── 앱 셸 (즉시 캐시) ───────────────────────────────────────── */
+/* ── 앱 셸: 설치 즉시 프리캐시 ─────────────────────────────── */
 const APP_SHELL = [
   './index.html',
   './manifest.json',
@@ -25,155 +25,105 @@ const APP_SHELL = [
   './icons/favicon-16.png',
 ];
 
-/* ── CDN 리소스 (네트워크 우선, 캐시 폴백) ────────────────────── */
+/* ── CDN 오리진 (Network-First) ─────────────────────────────── */
 const CDN_ORIGINS = [
   'https://fonts.googleapis.com',
   'https://fonts.gstatic.com',
+  'https://cdn.jsdelivr.net',
+  'https://cdnjs.cloudflare.com',
   'https://unpkg.com',
 ];
 
 /* ══════════════════════════════════════════════════════════════
-   INSTALL  — 앱 셸 프리캐시
+   INSTALL — 앱 셸 프리캐시
    ══════════════════════════════════════════════════════════════ */
 self.addEventListener('install', (event) => {
-  console.log('[SW] Install — 앱 셸 프리캐시 시작');
+  console.log('[SW] Install — 프리캐시 시작');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[SW] 앱 셸 캐시 중...');
-        return cache.addAll(APP_SHELL);
-      })
-      .then(() => {
-        console.log('[SW] 앱 셸 캐시 완료 — skipWaiting 호출');
-        return self.skipWaiting();
-      })
-      .catch((err) => {
-        console.warn('[SW] 프리캐시 실패 (일부 리소스 없음):', err);
-        // 실패해도 설치는 계속 진행
-        return self.skipWaiting();
-      })
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => { console.log('[SW] 프리캐시 완료'); return self.skipWaiting(); })
+      .catch((err) => { console.warn('[SW] 일부 실패:', err); return self.skipWaiting(); })
   );
 });
 
 /* ══════════════════════════════════════════════════════════════
-   ACTIVATE  — 구버전 캐시 정리
+   ACTIVATE — 구버전 캐시 삭제
    ══════════════════════════════════════════════════════════════ */
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activate — 구버전 캐시 정리');
   event.waitUntil(
     caches.keys()
-      .then((keys) => {
-        const VALID = [CACHE_NAME, CDN_CACHE];
-        return Promise.all(
-          keys
-            .filter((k) => !VALID.includes(k))
-            .map((k) => {
-              console.log('[SW] 구버전 캐시 삭제:', k);
-              return caches.delete(k);
-            })
-        );
-      })
-      .then(() => {
-        console.log('[SW] clients.claim 호출');
-        return self.clients.claim();
-      })
+      .then((keys) => Promise.all(
+        keys.filter((k) => ![CACHE_NAME, CDN_CACHE].includes(k))
+            .map((k) => { console.log('[SW] 구버전 삭제:', k); return caches.delete(k); })
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
 /* ══════════════════════════════════════════════════════════════
-   FETCH  — 요청 가로채기
+   FETCH — 요청 라우팅
    ══════════════════════════════════════════════════════════════ */
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
-
-  // ── 1) POST / 비-GET 요청 → 그냥 통과 ────────────────────
   if (request.method !== 'GET') return;
+  if (!request.url.startsWith('http')) return;
 
-  // ── 2) chrome-extension 등 무시 ──────────────────────────
-  if (!url.protocol.startsWith('http')) return;
-
-  // ── 3) CDN 리소스 → Network-First + CDN 캐시 ──────────────
-  const isCDN = CDN_ORIGINS.some((o) => url.origin === new URL(o).origin || url.href.startsWith(o));
-  if (isCDN) {
-    event.respondWith(networkFirstWithCDNCache(request));
-    return;
-  }
-
-  // ── 4) 로컬 자산 → Cache-First + 네트워크 폴백 ─────────────
-  event.respondWith(cacheFirstWithNetworkFallback(request));
+  const url = new URL(request.url);
+  const isCDN = CDN_ORIGINS.some(
+    (o) => url.origin === new URL(o).origin || request.url.startsWith(o)
+  );
+  event.respondWith(isCDN ? networkFirstCDN(request) : cacheFirstLocal(request));
 });
 
-/* ── Cache-First 전략 ─────────────────────────────────────────
-   캐시 히트 → 즉시 반환
-   캐시 미스 → 네트워크 → 캐시 저장
-   네트워크 실패 → 오프라인 페이지 ──────────────────────────── */
-async function cacheFirstWithNetworkFallback(request) {
+/* ── Cache-First (로컬 자산) ─────────────────────────────────── */
+async function cacheFirstLocal(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
-
   try {
-    const networkResponse = await fetch(request);
-    if (networkResponse && networkResponse.status === 200 && networkResponse.type !== 'opaque') {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
+    const res = await fetch(request);
+    if (res && res.status === 200 && res.type !== 'opaque')
+      (await caches.open(CACHE_NAME)).put(request, res.clone());
+    return res;
   } catch (_) {
-    // 오프라인 — HTML 요청이면 index.html 반환
     if (request.headers.get('accept')?.includes('text/html')) {
       const offline = await caches.match(OFFLINE_PAGE);
       if (offline) return offline;
     }
-    return new Response('오프라인 상태입니다. 앱을 먼저 온라인에서 한 번 열어주세요.', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    });
+    return new Response('오프라인 상태입니다. 앱을 먼저 온라인에서 한 번 열어주세요.',
+      { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 }
 
-/* ── Network-First 전략 (CDN) ─────────────────────────────────
-   네트워크 성공 → 응답 + CDN 캐시 갱신
-   네트워크 실패 → CDN 캐시 폴백 ─────────────────────────────── */
-async function networkFirstWithCDNCache(request) {
+/* ── Network-First (CDN 자산) ────────────────────────────────── */
+async function networkFirstCDN(request) {
   try {
-    const networkResponse = await fetch(request);
-    if (networkResponse && networkResponse.status === 200) {
-      const cache = await caches.open(CDN_CACHE);
-      cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
+    const res = await fetch(request);
+    if (res && res.status === 200) (await caches.open(CDN_CACHE)).put(request, res.clone());
+    return res;
   } catch (_) {
-    const cached = await caches.match(request, { cacheName: CDN_CACHE });
-    if (cached) return cached;
-    return new Response('', { status: 503 });
+    return (await caches.match(request, { cacheName: CDN_CACHE })) || new Response('', { status: 503 });
   }
 }
 
 /* ══════════════════════════════════════════════════════════════
-   MESSAGE  — 클라이언트로부터 명령 수신
+   MESSAGE — SKIP_WAITING (type / action 양쪽 호환)
    ══════════════════════════════════════════════════════════════ */
 self.addEventListener('message', (event) => {
-  if (event.data?.action === 'SKIP_WAITING') {
-    console.log('[SW] SKIP_WAITING 메시지 수신 → skipWaiting');
+  if (event.data?.type === 'SKIP_WAITING' || event.data?.action === 'SKIP_WAITING')
     self.skipWaiting();
-  }
-  if (event.data?.action === 'CLEAR_CACHE') {
-    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-      .then(() => console.log('[SW] 전체 캐시 삭제 완료'));
-  }
+  if (event.data?.action === 'CLEAR_CACHE')
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
 });
 
 /* ══════════════════════════════════════════════════════════════
-   PUSH  — 향후 알림 확장용 (현재 미사용)
+   PUSH — 알림 확장용 (현재 미사용)
    ══════════════════════════════════════════════════════════════ */
 self.addEventListener('push', (event) => {
   const data = event.data?.json() ?? { title: '간이스프링클러 계산서', body: '업데이트가 있습니다.' };
   event.waitUntil(
     self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: './icons/icon-192.png',
-      badge: './icons/icon-72.png',
+      body: data.body, icon: './icons/icon-192.png', badge: './icons/icon-72.png',
     })
   );
 });
