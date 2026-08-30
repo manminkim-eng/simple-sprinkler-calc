@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
    Service Worker — 간이스프링클러설비 펌프 용량 계산서
-   Developer MANMIN · Ver-3.3
+   Developer MANMIN · Ver-5.0
 ═══════════════════════════════════════════════════════════════ */
 
-const CACHE_NAME   = 'manmin-ganji-v3.4';
-const STATIC_CACHE = 'manmin-ganji-static-v3.4';
+const CACHE_NAME   = 'manmin-ganji-v5.0';
+const STATIC_CACHE = 'manmin-ganji-static-v5.0';
 
 const PRECACHE_URLS = [
   './',
@@ -23,7 +23,7 @@ const PRECACHE_URLS = [
 
 /* ── INSTALL ── */
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing ganji-v3.4...');
+  console.log('[SW] Installing ganji-v5.0...');
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => cache.addAll(PRECACHE_URLS).catch((e) => console.warn('[SW] Pre-cache 일부 실패:', e)))
