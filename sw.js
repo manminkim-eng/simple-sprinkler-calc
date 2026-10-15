@@ -1,4 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
+   v5.1.0 회차 2026-10-16 — NFPC 103A(제2025-25호) · NFTC 103A(제2024-58호) · 시행령 별표 4 원문 대조 근거 정정 · KS 강관 내경 · 배관 압력 판정 · 구간별 유속 판정 · 계산 엔진 단일화 · 매뉴얼(/manual/) 캐시 제외 · 캐시명 v5.1.0
    S9 회차 2026-09-05 — R28 JPG v5.5 소제목 동반 이관 동반 캐시명 v5.0.6
    S4 회차 2026-09-04 — R1b #mm-print-stamp 인쇄 비표시 동반 캐시명 v5.0.5
    S3-0 회차 2026-09-04 — R27 html2canvas 클론 정화 동반 캐시명 v5.0.4
@@ -23,8 +24,8 @@ const mmMatch = (req, opt) => caches.keys()
   .then((ks) => ks.reduce((p, k) => p.then((r) => r || caches.open(k).then((c) => c.match(req, opt))), Promise.resolve(undefined)))
   .then((r) => (r && r.type === 'opaque' && req && req.mode === 'cors') ? undefined : r);
 
-const CACHE_NAME   = 'manmin-ganji-v5.0.6';
-const STATIC_CACHE = 'manmin-ganji-static-v5.0.6';
+const CACHE_NAME   = 'manmin-ganji-v5.1.0';
+const STATIC_CACHE = 'manmin-ganji-static-v5.1.0';
 
 const PRECACHE_URLS = [
   './',
@@ -71,6 +72,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+  if (url.pathname.indexOf('/manual/') !== -1) return;   /* v5.1.0 — 매뉴얼은 온라인 전용 · 캐시 제외 */
 
   /* 외부 CDN (Google Fonts, unpkg 등) */
   if (url.origin !== location.origin) {
