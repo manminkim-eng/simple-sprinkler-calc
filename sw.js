@@ -1,4 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
+   v6.1.0 (2026-11-12) — 건물개요 공통 원본 MM-PROJECT v1.2 → v1.3(불러오기 창 표 칸 모양 고정 — 도구 CSS 가 새지 않음 · 저장값 같음, 정밀검토 C10) · 쓰지 않는 Noto Sans KR 구글 글꼴 불러오기 제거(실측으로 글자 하나도 안 쓰임 — 글꼴 지정은 그대로, 정밀검토 C4) · 작업지시서 §25-6-80 · 판 6.1 · 캐시명 v6.1.0 (종전 v5.1.12)
    v5.1.4 2026-10-31 — 휴대전화 · 터치 화면 단추 · 입력칸 최소 높이 32px · 캐시명 v5.1.4
    v5.1.0 회차 2026-10-16 — NFPC 103A(제2025-25호) · NFTC 103A(제2024-58호) · 시행령 별표 4 원문 대조 근거 정정 · KS 강관 내경 · 배관 압력 판정 · 구간별 유속 판정 · 계산 엔진 단일화 · 매뉴얼(/manual/) 캐시 제외 · 캐시명 v5.1.0
    S9 회차 2026-09-05 — R28 JPG v5.5 소제목 동반 이관 동반 캐시명 v5.0.6
@@ -25,8 +26,8 @@ const mmMatch = (req, opt) => caches.keys()
   .then((ks) => ks.reduce((p, k) => p.then((r) => r || caches.open(k).then((c) => c.match(req, opt))), Promise.resolve(undefined)))
   .then((r) => (r && r.type === 'opaque' && req && req.mode === 'cors') ? undefined : r);
 
-const CACHE_NAME   = 'manmin-ganji-v5.1.12';
-const STATIC_CACHE = 'manmin-ganji-static-v5.1.12';
+const CACHE_NAME   = 'manmin-ganji-v6.1.0';
+const STATIC_CACHE = 'manmin-ganji-static-v6.1.0';
 
 const PRECACHE_URLS = [
   './',
