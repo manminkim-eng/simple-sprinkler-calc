@@ -24,15 +24,16 @@ def py(sy,segs):
         v=(s['flow']/60000)/(math.pi*(Di/2000)**2); vo+= v>(6 if s['kind']=='br' else 10)
     J=math.ceil((sy['actualHead']+F+10)*1.1); P=0.163*(Q/1000)*J*K[sy['transType']]/(sy['pumpEff']/100); hp=P*1.341
     Php=next((h for h in HP if h>=hp), math.ceil(hp/5)*5); Pdis=J*1000*9.80665/1e6
-    return dict(A=n,Clpm=Q,D=D,F=F,J=J,Pkw=P,Php=Php,Pdis=Pdis,pipePressOK=(Pdis<1.2) or sy['pipeType']=='SCH40',velOverN=vo)
+    sh=sy.get('shutPress',0) or 0; Pshut=sh if sh>0 else Pdis*1.4   # v6.1.3 체절압력(입력 없으면 정격 × 1.4 — NFPC 103A 제5조②5호 · 소방청 해석 412390)
+    return dict(A=n,Clpm=Q,D=D,F=F,J=J,Pkw=P,Php=Php,Pdis=Pdis,Pshut=Pshut,pipePressOK=(Pshut<1.2) or sy['pipeType']=='SCH40',velOverN=vo)
 random.seed(20261016); cases=[]
 for _ in range(N):
     sy=dict(baseType=random.choice(list(TYPE)),actualHead=round(random.uniform(2,150),1),transType=random.randint(1,2),pumpDia=random.choice([40,50,65,80,100]),
-            pumpEff=random.randint(10,80),pipeType=random.choice(list(INNER)))
+            pumpEff=random.randint(10,80),pipeType=random.choice(list(INNER)),shutPress=random.choice([0,0,round(random.uniform(-0.5,2.0),2)]))
     sg=[dict(kind=random.choice(['br','oth']),flow=50*random.randint(1,16),dia=random.choice(list(FIT)),len=round(random.uniform(0,80),1),**{k:random.randint(0,6) for k in FK}) for _ in range(random.randint(1,5))]
     cases.append((sy,sg))
 tf=os.path.join(tempfile.gettempdir(),'_ssp_cases.json'); json.dump(cases,open(tf,'w'))
-js=os.path.join(tempfile.gettempdir(),'_ssp_run.js'); keys=['A','Clpm','D','F','J','Pkw','Php','Pdis','pipePressOK','velOverN']
+js=os.path.join(tempfile.gettempdir(),'_ssp_run.js'); keys=['A','Clpm','D','F','J','Pkw','Php','Pdis','Pshut','pipePressOK','velOverN']
 open(js,'w',encoding='utf-8').write("var window=globalThis;\n"+eng+"\nconst cs=require(process.argv[2]);process.stdout.write(JSON.stringify(cs.map(([s,g])=>{const c=sspCalc(s,g);return Object.fromEntries("+json.dumps(keys)+".map(k=>[k,c[k]]))})));")
 E=json.loads(subprocess.check_output(['node',js,tf])); bad=[]
 for i,((sy,sg),e) in enumerate(zip(cases,E)):
