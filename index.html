@@ -327,6 +327,8 @@ var FLOW_PER_HEAD_G = 50;   /* 간이헤드 50 L/min 이상(계산 50) (2.2.1) *
 var FLOW_PER_HEAD_P = 80;   /* 2.3.1.7 주차장 표준반응형 헤드 1개 80 L/min 이상 (2.2.1 단서) */
 var VEL_BRANCH      = 6;    /* 수리계산 시 가지배관 6 m/s 이하 (NFTC 103A 2.5.3.3 단서) */
 var VEL_OTHER       = 10;   /* 그 밖의 배관 10 m/s 이하 */
+/* v6.1.4 (교차검증 2026-11-23 P6) — NFPC 103A 별표 1 간이헤드 수별 급수관의 구경 「가」란(폐쇄형간이헤드 — 주 2) · 150A는 161개 이상(상한 없음) — 참고 표시 전용 */
+var TBL1_GA = {25:2,32:3,40:5,50:10,65:30,80:60,100:100,125:160};
 
 /* 기준 유형 — 수원 2개 × 10분 / 영 별표 4 제1호마목2)가) · 6) · 8) 대상은 5개 × 20분 (NFTC 103A 2.1.1.2 · 2.2.1) */
 var BASE_HEAD_TYPES = [
@@ -414,9 +416,19 @@ function sspCalc(sys,segs){
     const Pdis=J*MPA_M; const shutIn=+(sys.shutPress||0); const shutUser=shutIn>0; const Pshut=shutUser?shutIn:Pdis*1.4;
     const hiPress=Pshut>=1.2; const pipePressOK=!hiPress||sys.pipeType==="SCH40";
     const velOverN=sdets.filter(d=>d.velOver).length;
-    return{A,B,T,Clpm,D,E,F,G,I,Jraw,J,N,K,M,Pkw,Php,pCfg,sdets,btype,Pdis,Pshut,shutUser,hiPress,pipePressOK,velOverN};
+    /* v6.1.4 (2026-11-24, 교차검증 2026-11-23 P6 · P7) — 표시 전용(수원 · 전양정 · 동력 · pipePressOK · velOverN 불변)
+       P7 pipeCheck — 사용압력 1.2 MPa 이상에서 STS · CPVC는 「부적합」 대신 「확인 필요」:
+          STS = NFTC 103A 2.5.1 본문 「또는 동등 이상의 강도ㆍ내식성 및 내열성 등을 국내ㆍ외 공인기관으로부터 인정받은 것」
+          CPVC = NFPC 103A 제8조② · NFTC 103A 2.5.2(장소 특례 — 압력 수치 없음, 제품 성능인증 사용압력 확인)
+       P6 tbl1 — 구간 유량 ÷ 헤드 방수량 = 그 구간을 지나는 동시 개방 헤드 수(구간이 담당하는 헤드 수의 하한)가
+          NFPC 103A 별표 1 「가」란을 넘으면 참고 표시. 제8조③은 수리계산 또는 별표 1 택일 — 유속 판정(수리계산)을 대신하지 않음.
+          주차장 표준반응형 유형(park)은 간이헤드가 아니어서 대조 생략 */
+    const pipeCheck=hiPress&&(sys.pipeType==="STS"||sys.pipeType==="CPVC");
+    const tbl1=segs.map(s=>{if(btype.park)return null;const h=Math.ceil((+s.flow||0)/B-1e-9);const m=TBL1_GA[s.dia];return{heads:h,max:m==null?null:m,over:m!=null&&h>m};});
+    const tblOverN=tbl1.filter(t=>t&&t.over).length;
+    return{A,B,T,Clpm,D,E,F,G,I,Jraw,J,N,K,M,Pkw,Php,pCfg,sdets,btype,Pdis,Pshut,shutUser,hiPress,pipePressOK,velOverN,pipeCheck,tbl1,tblOverN};
 }
-window.SSPENG={calc:sspCalc,PIPE_CONFIG:PIPE_CONFIG,FITTING_EQ:FITTING_EQ,TRANS_TYPE:TRANS_TYPE,BASE_HEAD_TYPES:BASE_HEAD_TYPES};
+window.SSPENG={calc:sspCalc,PIPE_CONFIG:PIPE_CONFIG,FITTING_EQ:FITTING_EQ,TRANS_TYPE:TRANS_TYPE,BASE_HEAD_TYPES:BASE_HEAD_TYPES,TBL1_GA:TBL1_GA};
 </script>
 <script type="text/babel">
 const { useState, useMemo, useEffect } = React;
@@ -478,7 +490,7 @@ function Sel({val,onChange,children}){
 }
 function Card({label,value,unit,formula,badge,bc}){
   const colors={blue:["#eff6ff","#1d4ed8","#bfdbfe"],orange:["#f0fdf4","#15803d","#bbf7d0"],
-                red:["#fef2f2","#b91c1c","#fecaca"],green:["#f0fdf4","#16a34a","#bbf7d0"],
+                red:["#fef2f2","#b91c1c","#fecaca"],green:["#f0fdf4","#16a34a","#bbf7d0"],amber:["#fffbeb","#b45309","#fde68a"],
                 default:["#f9fafb","#374151","#e5e7eb"]};
   const [bg,tc,bc2]=colors[bc]||colors.default;
   return(
@@ -707,7 +719,8 @@ function FormulaModal({onClose}){
                 <div className="fml-note">
                   Q: 유량(m³/s) | C: 유속계수(배관 종류별) | D: 관 내경(m) | L: 상당직관 합계(m)<br/>
                   배관 C값: KS D3507·KS D3562 = 120 | STS·CPVC = 150 (MANMIN 참고값) · 강관 내경 KS 외경 − 2 × 두께<br/>
-                  유속(NFTC 103A 2.5.3.3 단서 — 수리계산 시): 가지배관 ≤ 6 m/s | 그 밖의 배관 ≤ 10 m/s — 구간 「구분」으로 따로 판정
+                  유속(NFTC 103A 2.5.3.3 단서 — 수리계산 시): 가지배관 ≤ 6 m/s | 그 밖의 배관 ≤ 10 m/s — 구간 「구분」으로 따로 판정<br/>
+                  참고(v6.1.4): NFPC 103A 별표 1 「가」란 — 25A 2 · 32A 3 · 40A 5 · 50A 10 · 65A 30 · 80A 60 · 100A 100 · 125A 160개(150A 161개 이상). 구간 유량 ÷ 헤드 방수량이 넘으면 참고 표시(제8조③ 수리계산 또는 별표 1 택일)
                 </div>
               </div>
               <div className="fml-card">
@@ -723,7 +736,7 @@ function FormulaModal({onClose}){
               <div className="fml-card">
                 <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:4}}>S. 배관 사용압력 판정 (v6.1.3 — 체절압력 기준 · 표시 전용)</div>
                 <code className="fml-eq">S = 체절압력(입력, 없으면 전양정 × 0.0098 × 1.4) [MPa] — 1.2 MPa 이상이면 KS D 3562 · 3583 또는 릴리프밸브로 1.2 MPa 미만 유지</code>
-                <div className="fml-note">배관 사용압력 = 체절압력(소방청 법령해석 412390) · 체절운전 시 정격토출압력의 140 % 이하(NFPC 103A 제5조②5호 · NFTC 103A 2.2.2.5) · NFPC 103A 제8조①2호 · NFTC 103A 2.5.1.2 — 앱 선택지 중에는 KS D 3562만 「배관 적합」</div>
+                <div className="fml-note">배관 사용압력 = 체절압력(소방청 법령해석 412390) · 체절운전 시 정격토출압력의 140 % 이하(NFPC 103A 제5조②5호 · NFTC 103A 2.2.2.5) · NFPC 103A 제8조①2호 · NFTC 103A 2.5.1.2 — 앱 선택지 중에는 KS D 3562만 「배관 적합」 · STS는 「확인 필요」(2.5.1 본문 동등 이상 인정 제품) · CPVC는 「확인 필요」(2.5.2 장소 특례 · 성능인증 사용압력) — v6.1.4</div>
               </div>
             </div>
           </div>
@@ -968,6 +981,10 @@ function App(){
 
             {/* 시스템 파라미터 */}
             <Box title="Ⅰ-1. 간이스프링클러 시스템 파라미터 (NFTC 103A)" accent="#16a34a">
+              {/* v6.1.4 교차검증 P8 — 적용 범위 */}
+              <div className="mm-scope-note" style={{marginBottom:12,fontSize:11,color:"#374151",lineHeight:1.6,padding:"6px 10px",background:"#f8fafc",borderRadius:6,border:"1px solid #e2e8f0"}}>
+                <b>적용 범위 — 펌프형(전동기 · 내연기관 펌프 가압송수장치) 전용 계산서.</b> 상수도직결형(급수배관 수도배관 32 mm 이상 — NFTC 103A 2.5.3.1) · 캐비닛형(NFPC 103A 별표 1 주 4 · NFTC 103A 2.2.6) · 고가수조 · 압력수조 · 가압수조(2.2.3 ~ 2.2.5) · 주택전용(2.11 — 가압송수장치 「적용하지 않을 수 있음」)은 이 계산서로 산정하지 않음
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:14}}>
 
                 {/* A. 기준개수 선택 */}
@@ -1032,8 +1049,11 @@ function App(){
                     </div>
                   )}
                   {!C.pipePressOK&&(
-                    <div className="mm-pipe-warn" style={{marginTop:5,fontSize:11,color:"#b91c1c",fontWeight:700,padding:"4px 8px",background:"#fef2f2",borderRadius:6,border:"1px solid #fecaca"}}>
+                    <div className="mm-pipe-warn" style={C.pipeCheck?{marginTop:5,fontSize:11,color:"#b45309",fontWeight:700,padding:"4px 8px",background:"#fffbeb",borderRadius:6,border:"1px solid #fde68a"}:{marginTop:5,fontSize:11,color:"#b91c1c",fontWeight:700,padding:"4px 8px",background:"#fef2f2",borderRadius:6,border:"1px solid #fecaca"}}>
                       ⚠ 사용압력(체절) {ff(C.Pshut,2)} MPa ≥ 1.2 MPa — KS D 3562 · 3583 사용 또는 릴리프밸브로 1.2 MPa 미만 유지(NFPC 103A 제8조①2호 · NFTC 103A 2.5.1.2 · 소방청 법령해석)
+                      {C.pipeCheck&&(sys.pipeType==="STS"
+                        ?<><br/>확인 필요 — 스테인리스 강관은 2.5.1.2 목록 밖: 동등 이상의 강도 · 내식성 · 내열성을 공인기관에서 인정받은 제품이면 사용 가능(NFTC 103A 2.5.1 본문)</>
+                        :<><br/>확인 필요 — 소방용 합성수지배관은 2.5.2 장소(지하 매설 · 내화구조 덕트 · 피트 · 불연 반자 안 습식)에 한해 설치 가능 — 제품 성능인증 사용압력 확인(NFPC 103A 제8조②)</>)}
                     </div>
                   )}
                 </div>
@@ -1154,6 +1174,15 @@ function App(){
               <div style={{marginTop:8,padding:"7px 12px",background:"#fef3c7",border:"1px solid #bbf7d0",borderRadius:8,fontSize:11,color:"#166534",fontFamily:"'Pretendard Variable',Pretendard,'Noto Sans KR','Noto Sans KR Local',sans-serif"}}>
                 ⚠️ <b>유속 판정 (NFTC 103A 2.5.3.3 단서 — 수리계산에 따르는 경우):</b> 구분 「가지」 ≤ 6 m/s&nbsp;|&nbsp;「교차·주」(그 밖의 배관) ≤ 10 m/s — 초과 시 ⚠ 표시 · 관경은 표 2.5.3.3(NFPC 103A 별표 1)으로도 확인
               </div>
+              {/* v6.1.4 교차검증 P6 — NFPC 103A 별표 1 「가」란 참고(표시 전용) */}
+              <div className="mm-tbl1-note" style={{marginTop:6,padding:"6px 12px",borderRadius:8,fontSize:11,lineHeight:1.6,fontFamily:"'Pretendard Variable',Pretendard,'Noto Sans KR','Noto Sans KR Local',sans-serif",
+                ...(C.tblOverN>0?{background:"#fffbeb",border:"1px solid #fde68a",color:"#92400e"}:{background:"#f8fafc",border:"1px solid #e2e8f0",color:"#6b7280"})}}>
+                <b>참고 — NFPC 103A 별표 1 「가」란(간이헤드 수별 급수관 구경):</b>{" "}
+                {C.btype.park?"주차장 표준반응형 유형은 간이헤드 표가 아니어서 대조 생략":
+                 C.tblOverN>0?C.tbl1.map((t,i)=>t&&t.over?`구간 ${i+1}: ${segs[i].dia}A · 유량 기준 헤드 ${t.heads}개 > ${t.max}개`:null).filter(Boolean).join(" · ")+" — 별표 1 초과, 수리계산 근거 확인(제8조③은 수리계산 또는 별표 1 택일)":
+                 "구간 유량 기준 헤드 수가 표 이내"}
+                <span style={{color:"#9ca3af"}}> (헤드 수 = 구간 유량 ÷ 헤드 방수량 — 실제 담당 헤드 수는 도면으로 확인)</span>
+              </div>
               {/* 관부속 참고 안내 */}
               <div style={{marginTop:8,padding:"10px 14px",background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,fontFamily:"'Pretendard Variable',Pretendard,'Noto Sans KR','Noto Sans KR Local',sans-serif"}}>
                 <div style={{fontSize:11,fontWeight:700,color:"#374151",marginBottom:6}}>【 관부속 상당직관 적용 참고사항 】</div>
@@ -1220,7 +1249,7 @@ function App(){
               </div>
               {/* v5.1.0 — 배관 사용압력 판정(표시 전용) */}
               <div className="g-2sm mm-press" style={{marginTop:14}}>
-                <Card label="S. 배관 사용압력 (체절압력)" value={ff(C.Pshut,3)} unit="MPa" formula={`${C.shutUser?"입력 체절압력":`정격 ${C.J} m × 0.0098 = ${ff(C.Pdis,3)} MPa × 1.4`} — ${C.hiPress?"1.2 MPa 이상: KS D 3562 · 3583 또는 릴리프밸브로 1.2 MPa 미만":"1.2 MPa 미만"} (NFTC 103A 2.5.1 · 소방청 해석)`} badge={C.pipePressOK?"배관 적합":"배관 부적합"} bc={C.pipePressOK?"green":"red"}/>
+                <Card label="S. 배관 사용압력 (체절압력)" value={ff(C.Pshut,3)} unit="MPa" formula={`${C.shutUser?"입력 체절압력":`정격 ${C.J} m × 0.0098 = ${ff(C.Pdis,3)} MPa × 1.4`} — ${C.hiPress?"1.2 MPa 이상: KS D 3562 · 3583 또는 릴리프밸브로 1.2 MPa 미만":"1.2 MPa 미만"} (NFTC 103A 2.5.1 · 소방청 해석)`} badge={C.pipePressOK?"배관 적합":C.pipeCheck?"확인 필요":"배관 부적합"} bc={C.pipePressOK?"green":C.pipeCheck?"amber":"red"}/>
                 <Card label="유속 판정 (2.5.3.3 단서)" value={C.velOverN===0?"적합":`${C.velOverN}구간 초과`} unit="" formula="가지 6 m/s · 교차·주 10 m/s — 수리계산 시" badge={C.velOverN===0?"이내":"초과"} bc={C.velOverN===0?"green":"red"}/>
               </div>
               <div className="mm-prv-note" style={{marginTop:8,fontSize:11,color:"#6b7280",lineHeight:1.6}}>
@@ -1330,7 +1359,7 @@ function App(){
                 <RRow no="G" label="헤드 선단 최소 방수압력 환산수두 (h₃)" value={f3(NOZZLE_HEAD)} unit="m"  basis="0.1 MPa 이상 ⇒ 10 m  (NFPC 103A 제5조① · NFTC 103A 2.2.1)"/>
                 <RRow no="H" label="안전율 (SF = 10%)"                   value={f3(C.I)}        unit="m"  basis={`H = (E+F+G) × 0.1 = ${f3(C.E+C.F+C.G)} × 0.1`}/>
                 <RRow no="I" label="전  양  정"                           value={`${f3(C.Jraw)} → ${C.J}`} unit="m"  basis={`I = E+F+G+H = ${f3(C.Jraw)} m → ${C.J} m (올림 적용) — 안전율 10 % · 올림은 MANMIN 참고값(화재안전기준에 수치 없음)`} hi/>
-                <RRow no="S" label="배관 사용압력 (체절압력)"           value={ff(C.Pshut,3)}         unit="MPa" basis={`S = ${C.shutUser?"입력 체절압력":`I × 0.0098 × 1.4 (정격 ${ff(C.Pdis,3)} MPa · NFPC 103A 제5조②5호)`} — ${C.hiPress?"1.2 MPa 이상 → KS D 3562 · 3583(NFTC 103A 2.5.1.2) 또는 릴리프밸브로 1.2 MPa 미만":"1.2 MPa 미만"} (소방청 해석) · ${C.pCfg.shortLabel} ${C.pipePressOK?"적합":"부적합 ⚠"}`}/>
+                <RRow no="S" label="배관 사용압력 (체절압력)"           value={ff(C.Pshut,3)}         unit="MPa" basis={`S = ${C.shutUser?"입력 체절압력":`I × 0.0098 × 1.4 (정격 ${ff(C.Pdis,3)} MPa · NFPC 103A 제5조②5호)`} — ${C.hiPress?"1.2 MPa 이상 → KS D 3562 · 3583(NFTC 103A 2.5.1.2) 또는 릴리프밸브로 1.2 MPa 미만":"1.2 MPa 미만"} (소방청 해석) · ${C.pCfg.shortLabel} ${C.pipePressOK?"적합":C.pipeCheck?(sys.pipeType==="STS"?"확인 필요 ⚠ (2.5.1 동등 이상 인정 제품이면 가능)":"확인 필요 ⚠ (2.5.2 장소 특례 · 성능인증 사용압력 확인)"):"부적합 ⚠"}`}/>
               </RSection>
 
               {/* Ⅱ-3 전동기 */}
@@ -1355,19 +1384,19 @@ function App(){
                       {["NO","유량\n(ℓ/min)","관경\n(A)","직관\n(m)",
                         "90°Elbow\n수량(상당직관)","45°Elbow\n수량(상당직관)","분류Tee\n수량(상당직관)","직류Tee\n수량(상당직관)",
                         "Gate V/V\n수량(상당직관)","Ball V/V\n수량(상당직관)","Angle V/V\n수량(상당직관)","Check V/V\n수량(상당직관)",
-                        "상당직관\n합계(m)","마찰계수\n(m/100m)","손실수두\n(m)"].map((h,i)=>(
+                        "상당직관\n합계(m)","마찰계수\n(m/100m)","손실수두\n(m)","유속\n(m/s)"].map((h,i)=>(
                         <th key={i} style={{border:BD,padding:"5px 4px",textAlign:"center",whiteSpace:"pre-line",lineHeight:1.4,fontSize:9,fontWeight:700}}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {segs.map((s,i)=>{
-                      const d=C.sdets[i]||{fric:0,fl:0,hl:0};
+                      const d=C.sdets[i]||{fric:0,fl:0,hl:0,vel:0,vlim:0,velOver:false};
                       const eq=FITTING_EQ[s.dia]||FITTING_EQ[100];
                       const counts=[s.e90,s.e45,s.teeB,s.teeS,s.gate,s.ball,s.angle,s.check];
                       return(
                         <tr key={i} style={{background:i%2===0?"white":"#f9fafb"}}>
-                          <td style={S.cell}>{i+1}<div style={{fontSize:8,color:"#6b7280",whiteSpace:"nowrap"}}>{s.kind==="br"?"가지":"기타"}</div></td>
+                          <td style={S.cell}>{i+1}<div style={{fontSize:8,color:"#6b7280",whiteSpace:"nowrap"}}>{s.kind==="br"?"가지":"교차·주"}</div></td>
                           <td style={{...S.cell,fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace"}}>{s.flow}</td>
                           <td style={{...S.cell,fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace"}}>{s.dia}</td>
                           <td style={{...S.cell,fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace"}}>{s.len}</td>
@@ -1380,15 +1409,23 @@ function App(){
                           <td style={{...S.cell,fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace"}}>{f3(d.fl)}</td>
                           <td style={{...S.cell,fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace"}}>{f3(d.fric)}</td>
                           <td style={{...S.cell,fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace"}}>{f3(d.hl)}</td>
+                          <td style={{...S.cell,fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace",whiteSpace:"nowrap",color:d.velOver?"#dc2626":undefined,fontWeight:d.velOver?700:undefined}}>
+                            {f2(d.vel)}<div style={{fontSize:8,color:d.velOver?"#dc2626":"#6b7280"}}>{d.velOver?`⚠ ${d.vlim} 초과`:`≤ ${d.vlim}`}</div>
+                          </td>
                         </tr>
                       );
                     })}
                     <tr style={{background:"#dcfce7",fontWeight:700}}>
                       <td colSpan={14} style={{border:BD,padding:"5px 10px",textAlign:"right",color:"#166534",fontSize:11,whiteSpace:"nowrap"}}>합계 (h₂)</td>
                       <td style={{border:BD,padding:"5px 6px",textAlign:"right",fontFamily:"'JetBrains Mono','Pretendard Variable',Pretendard,'Noto Sans KR',monospace",color:"#16a34a",fontWeight:900,fontSize:12,paddingRight:8}}>{f3(C.F)}</td>
+                      <td style={{border:BD,padding:"5px 4px",textAlign:"center",fontSize:9,color:C.velOverN?"#dc2626":"#166534",whiteSpace:"nowrap"}}>{C.velOverN?`${C.velOverN}구간 초과`:"이내"}</td>
                     </tr>
                   </tbody>
                 </table>
+                {/* v6.1.4 교차검증 P5 · P6 — 유속 한계 · 별표 1 참고 */}
+                <div className="mm-a4-pipe-note" style={{fontSize:9,color:"#6b7280",marginTop:4,lineHeight:1.5}}>
+                  유속: 가지 ≤ 6 m/s · 교차·주(그 밖의 배관) ≤ 10 m/s (NFTC 103A 2.5.3.3 단서 — 수리계산 시) · 별표 1 「가」란 참고(NFPC 103A 제8조③): {C.btype.park?"주차장 표준반응형 — 대조 생략":C.tblOverN>0?C.tbl1.map((t,i)=>t&&t.over?`구간 ${i+1} ${segs[i].dia}A 헤드 ${t.heads}개 > ${t.max}개`:null).filter(Boolean).join(" · ")+" — 수리계산 근거 확인":"구간 유량 기준 헤드 수 이내"}
+                </div>
               </div>
 
               {/* Ⅱ-4 펌프 선정 결과 */}
@@ -1425,7 +1462,7 @@ function App(){
                 ② 화재안전기술기준 NFTC 103A [국립소방연구원공고 제2024-58호, 시행 2024. 12. 1.]<br/>
                 &nbsp;&nbsp;- 2.1.1.2 (수원) · 2.2.1 (방수압 · 방수량) · 2.2.7 (5개 대상은 상수도직결형 · 캐비닛형 제외) · 2.3.1.7 · 2.6.1.9 (주차장 표준반응형)<br/>
                 &nbsp;&nbsp;- 2.5.1 (배관 재질) · 2.5.3.3 단서 (수리계산 시 가지배관 6 m/s · 그 밖의 배관 10 m/s 이하)<br/>
-                &nbsp;&nbsp;- 비상전원 20분 대상: NFTC 103A 2.9.1 「마목2)가) 또는 6)과 8)」 · NFPC 103A 제12조 「마목1)가 또는 6)과 7)」 — 두 기준 표기가 다름(병기)<br/>
+                &nbsp;&nbsp;- 비상전원 20분 대상: NFTC 103A 2.9.1 「마목2)가) 또는 6)과 8)」 · NFPC 103A 제12조 「마목1)가 또는 6)과 7)」 — 두 기준 표기가 다름(병기) · 현행 영 별표 4(2026. 9. 29. 개정) 번호는 NFTC 표기와 일치(1)에는 「가」 없음 · 7)은 보호시설)<br/>
                 ③ 소방시설 설치 및 관리에 관한 법률 시행령 별표 4 제1호마목 (2026. 9. 29. 개정) — 2)가) 근린생활 1천㎡ 이상 · 6) 숙박 300 ~ 600㎡ · 8) 복합건축물 1천㎡ 이상<br/>
                 ⓐ 배관 마찰손실: Hazen-Williams 공식 — {C.pCfg.shortLabel}, C = {C.pCfg.C} 적용 · 강관 내경 KS 외경 − 2 × 두께
                 {["STS","CPVC"].includes(sys.pipeType)&&" (내식성 배관 — C=150 적용)"}<br/>
