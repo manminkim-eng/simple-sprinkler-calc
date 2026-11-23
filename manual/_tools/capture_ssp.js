@@ -22,19 +22,19 @@ window.__find=sel=>{if(sel.startsWith('box:'))return __box(sel.slice(4));if(sel.
  for(const s of sel.split(',')){const e=[...document.querySelectorAll(s)].find(__vis);if(e)return e;}return null;};
 window.__EX=${JSON.stringify(EX)};
 window.__run=(k,tab)=>{const e=__EX[k];__mmHyd.setShowFormula(false);__mmHyd.setProj(e.proj);__mmHyd.setSys(e.sys);__mmHyd.setSegs(e.segs);__mmHyd.setTab(tab||0);window.scrollTo(0,0);};
-window.__ex=k=>{const e=__EX[k];const c=SSPENG.calc(e.sys,e.segs);const r={};['A','B','T','Clpm','D','E','F','G','I','Jraw','J','M','N','K','Pkw','Php','Pdis','hiPress','pipePressOK','velOverN'].forEach(x=>r[x]=c[x]);r.btype=c.btype;
+window.__ex=k=>{const e=__EX[k];const c=SSPENG.calc(e.sys,e.segs);const r={};['A','B','T','Clpm','D','E','F','G','I','Jraw','J','M','N','K','Pkw','Php','Pdis','Pshut','shutUser','hiPress','pipePressOK','velOverN'].forEach(x=>r[x]=c[x]);r.btype=c.btype;
  r.seg=c.sdets.map(d=>({fric:d.fric,fl:d.fl,hl:d.hl,vel:d.vel,vlim:d.vlim,velOver:d.velOver}));return {in:e,R:r};};`;
 const SHOTS=[
  {id:'s01_overview',pre:"__run('A',0)",clip:'viewport',m:[['.tab-bar-wrap','작업 탭 · 매뉴얼'],['.sum-bar','요약 바'],['box:Ⅰ-0','프로젝트 정보'],['box:Ⅰ-1','시스템 파라미터'],['.formula-fab','계산식 안내']]},
  {id:'s02_header',clip:'nth:.no-print|0',m:[['nth:.tab-bar-wrap button|0','① 데이터 입력'],['nth:.tab-bar-wrap button|1','② 계산 결과'],['nth:.tab-bar-wrap button|2','③ 계산서 출력'],['.tb-manual','📘 매뉴얼'],['.hdr-right','근거 · 공고 · 시행일']]},
  {id:'s03_project',clip:'box:Ⅰ-0',m:[['lab:공사명','공사명'],['lab:설계자','설계자'],['lab:작성일','작성일']]},
- {id:'s04_params',clip:'box:Ⅰ-1',m:[['lab:A. 적용 기준 유형','A. 기준 유형 — 2개 · 10분 / 5개 · 20분 · 주차장'],['.mm-type-note','설비 방식 안내(2.2.7 · 2.11)'],['lab:F. 실양정','실양정'],['lab:K. 펌프 토출구경','펌프 구경'],['lab:K-1. 펌프 효율','펌프 효율'],['lab:L. 동력 전달방식','전달방식'],['lab:배관 종류','배관 종류(C값)']]},
+ {id:'s04_params',clip:'box:Ⅰ-1',m:[['lab:A. 적용 기준 유형','A. 기준 유형 — 2개 · 10분 / 5개 · 20분 · 주차장'],['.mm-type-note','설비 방식 안내(2.2.7 · 2.11)'],['lab:F. 실양정','실양정'],['lab:K. 펌프 토출구경','펌프 구경'],['lab:K-1. 펌프 효율','펌프 효율'],['lab:L. 동력 전달방식','전달방식'],['lab:배관 종류','배관 종류(C값)'],['lab:S-1. 펌프 체절압력','S-1 체절압력(선택) — 배관 사용압력']]},
  {id:'s05_segments',clip:'box:Ⅰ-2',crop:1100,m:[['nth:.seg-kind|0','구분 — 가지 / 교차·주'],['nth:#root table tbody tr|0','1구간 — 펌프 토출 50A'],['nth:#root table tbody tr|2','3구간 — 가지배관 32A'],['nth:button|__ADD__','＋ 구간 추가']]},
  {id:'s06_source',pre:"__mmHyd.setTab(1)",wait:800,clip:'box:Ⅱ-1',m:[['card:A. 기준개수','A. 간이헤드 2개'],['card:B. 헤드','B. 50 L/min 이상'],['card:C. 펌프 토출량','C. 펌프 토출량'],['card:D. 수원 용량','D. 2 × 50 × 10 = 1 m³']]},
- {id:'s07_head',clip:'box:Ⅱ-2',m:[['card:E. 실양정','h₁ 실양정'],['card:F. 배관 마찰손실','h₂ 배관 마찰손실'],['card:G. 헤드','h₃ 헤드 10 m'],['card:I. 안전율','안전율 10 %'],['nth:.g-2 > div|1','소계 · 안전율 · 전양정'],['card:S. 토출압력','S 토출압력 — 배관 사용압력'],['card:유속 판정','유속 판정 6 · 10 m/s']]},
+ {id:'s07_head',clip:'box:Ⅱ-2',m:[['card:E. 실양정','h₁ 실양정'],['card:F. 배관 마찰손실','h₂ 배관 마찰손실'],['card:G. 헤드','h₃ 헤드 10 m'],['card:I. 안전율','안전율 10 %'],['nth:.g-2 > div|1','소계 · 안전율 · 전양정'],['card:S. 배관 사용압력','S 배관 사용압력 — 체절압력'],['card:유속 판정','유속 판정 6 · 10 m/s']]},
  {id:'s08_power',clip:'box:Ⅱ-3',m:[['card:M. 토출량','Q 토출량'],['card:J. 전양정','H 전양정'],['card:O. 전달계수','K 전달계수'],['card:N. 펌프 효율','η 펌프 효율'],['card:P. 이론 출력','P 이론 출력'],['card:Q. 선정 출력','표준 HP']]},
  {id:'s09_b_source',pre:"__run('B',1)",wait:900,clip:'box:Ⅱ-1',m:[['card:A. 기준개수','5개 — 마목2)가) 대상'],['card:C. 펌프 토출량','5 × 50 = 250 L/min'],['card:D. 수원 용량','5 × 50 × 20 = 5 m³']]},
- {id:'s10_b_head',clip:'box:Ⅱ-2',m:[['nth:.g-2 > div|1','전양정'],['card:S. 토출압력','토출압력'],['.mm-prv-note','방수압 · 수조 식']]},
+ {id:'s10_b_head',clip:'box:Ⅱ-2',m:[['nth:.g-2 > div|1','전양정'],['card:S. 배관 사용압력','배관 사용압력(체절)'],['.mm-prv-note','방수압 · 수조 식']]},
  {id:'s11_c_source',pre:"__run('C',1)",wait:900,clip:'box:Ⅱ-1',m:[['card:B. 헤드','표준반응형 80 L/min'],['card:D. 수원 용량','2 × 80 × 10 = 1.6 m³']]},
  {id:'s11b_c_seg',pre:"__mmHyd.setTab(0)",wait:900,clip:'box:Ⅰ-1',m:[['lab:A. 적용 기준 유형','주차장(일반) 선택'],['.mm-type-note','방식 안내']]},
  {id:'s12_formula',pre:"__run('A',0);setTimeout(()=>__mmHyd.setShowFormula(true),50)",wait:900,fixed:true,clip:'.fml-box',m:[]},
@@ -96,7 +96,7 @@ const SHOTS=[
  ex.mobile=await mp.evaluate(()=>({page:document.documentElement.scrollWidth,vw:innerWidth}));
  fs.writeFileSync(path.join(out,'_marks.json'),JSON.stringify(meta,null,1));fs.writeFileSync(path.join(out,'_example.json'),JSON.stringify(ex,null,1));
  const miss=[];Object.entries(meta).forEach(([k,v])=>v.marks.forEach(m=>{if(m.miss)miss.push(k+':'+m.miss);else if(m.x<0||m.y<0||m.x+m.w>100.5||m.y+m.h>100.5||m.w<=0||m.h<=0)miss.push(k+':OUT '+m.label+' '+m.x+','+m.y+','+m.w+','+m.h);}));
- const sh=o=>o&&{A:o.R.A,Q:o.R.Clpm,D:o.R.D,F:o.R.F,J:o.R.J,P:o.R.Pkw,HP:o.R.Php,S:o.R.Pdis,vo:o.R.velOverN};
+ const sh=o=>o&&{A:o.R.A,Q:o.R.Clpm,D:o.R.D,F:o.R.F,J:o.R.J,P:o.R.Pkw,HP:o.R.Php,S:o.R.Pdis,Sh:o.R.Pshut,ok:o.R.pipePressOK,vo:o.R.velOverN};
  console.log(JSON.stringify({A:sh(ex.A),B:sh(ex.B),C:sh(ex.C),mobile:ex.mobile,sizes:Object.fromEntries(Object.entries(meta).map(([k,v])=>[k,v.w+'x'+v.h])),miss,errs:errs.slice(0,15)},null,1));
  await b.close();s.close();
 })();
