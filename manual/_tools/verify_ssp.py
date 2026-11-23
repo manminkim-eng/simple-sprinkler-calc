@@ -15,6 +15,7 @@ INNER={'SCH10':({d:round(o-2*t,2) for d,(o,t) in OD['3507'].items()},120),'SCH40
 FIT={25:[0.9,0.54,1.5,0.27,0.18,7.5,4.5,2.0],32:[1.2,0.72,1.8,0.36,0.24,10.5,5.4,2.5],40:[1.5,0.90,2.1,0.45,0.30,13.8,6.5,3.1],50:[2.1,1.20,3.0,0.60,0.39,16.5,8.4,4.0],
  65:[2.4,1.30,3.6,0.75,0.48,19.5,10.2,4.6],80:[3.0,1.80,4.5,0.90,0.60,24.0,12.0,5.7],100:[4.2,2.40,6.3,1.20,0.81,37.5,16.5,7.6],125:[5.1,3.00,7.5,1.50,0.99,42.0,21.0,10.0],
  150:[6.0,3.60,9.0,1.80,1.20,49.5,24.0,12.0],200:[6.5,3.70,14.0,4.00,1.40,70.0,33.0,15.0]}
+GA={25:2,32:3,40:5,50:10,65:30,80:60,100:100,125:160}   # v6.1.4 NFPC 103A 별표 1 「가」란(폐쇄형간이헤드) — 150A는 161개 이상(상한 없음) · 참고 표시 전용
 K={1:1.1,2:1.15}; HP=[3,5,7.5,10,15,20,25,30,40,50,60,75,100,125,150,200]; FK=['e90','e45','teeB','teeS','gate','ball','angle','check']
 def py(sy,segs):
     n,q,t=TYPE[sy['baseType']]; Q=n*q; D=n*q*t/1000
@@ -25,7 +26,9 @@ def py(sy,segs):
     J=math.ceil((sy['actualHead']+F+10)*1.1); P=0.163*(Q/1000)*J*K[sy['transType']]/(sy['pumpEff']/100); hp=P*1.341
     Php=next((h for h in HP if h>=hp), math.ceil(hp/5)*5); Pdis=J*1000*9.80665/1e6
     sh=sy.get('shutPress',0) or 0; Pshut=sh if sh>0 else Pdis*1.4   # v6.1.3 체절압력(입력 없으면 정격 × 1.4 — NFPC 103A 제5조②5호 · 소방청 해석 412390)
-    return dict(A=n,Clpm=Q,D=D,F=F,J=J,Pkw=P,Php=Php,Pdis=Pdis,Pshut=Pshut,pipePressOK=(Pshut<1.2) or sy['pipeType']=='SCH40',velOverN=vo)
+    pc=(Pshut>=1.2) and sy['pipeType'] in ('STS','CPVC')   # v6.1.4 STS · CPVC 고압 「확인 필요」(NFTC 103A 2.5.1 본문 · NFPC 103A 제8조② · 2.5.2)
+    park=sy['baseType'].startswith('AP'); to=0 if park else sum(1 for s in segs if s['dia'] in GA and math.ceil(s['flow']/q-1e-9)>GA[s['dia']])
+    return dict(A=n,Clpm=Q,D=D,F=F,J=J,Pkw=P,Php=Php,Pdis=Pdis,Pshut=Pshut,pipePressOK=(Pshut<1.2) or sy['pipeType']=='SCH40',velOverN=vo,pipeCheck=pc,tblOverN=to)
 random.seed(20261016); cases=[]
 for _ in range(N):
     sy=dict(baseType=random.choice(list(TYPE)),actualHead=round(random.uniform(2,150),1),transType=random.randint(1,2),pumpDia=random.choice([40,50,65,80,100]),
@@ -33,14 +36,14 @@ for _ in range(N):
     sg=[dict(kind=random.choice(['br','oth']),flow=50*random.randint(1,16),dia=random.choice(list(FIT)),len=round(random.uniform(0,80),1),**{k:random.randint(0,6) for k in FK}) for _ in range(random.randint(1,5))]
     cases.append((sy,sg))
 tf=os.path.join(tempfile.gettempdir(),'_ssp_cases.json'); json.dump(cases,open(tf,'w'))
-js=os.path.join(tempfile.gettempdir(),'_ssp_run.js'); keys=['A','Clpm','D','F','J','Pkw','Php','Pdis','Pshut','pipePressOK','velOverN']
+js=os.path.join(tempfile.gettempdir(),'_ssp_run.js'); keys=['A','Clpm','D','F','J','Pkw','Php','Pdis','Pshut','pipePressOK','velOverN','pipeCheck','tblOverN']
 open(js,'w',encoding='utf-8').write("var window=globalThis;\n"+eng+"\nconst cs=require(process.argv[2]);process.stdout.write(JSON.stringify(cs.map(([s,g])=>{const c=sspCalc(s,g);return Object.fromEntries("+json.dumps(keys)+".map(k=>[k,c[k]]))})));")
 E=json.loads(subprocess.check_output(['node',js,tf])); bad=[]
 for i,((sy,sg),e) in enumerate(zip(cases,E)):
     p=py(sy,sg)
     for k in keys:
-        if isinstance(p[k],bool) or k=='velOverN':
+        if isinstance(p[k],bool) or k in ('velOverN','tblOverN'):
             if p[k]!=e[k]: bad.append((i,k,p[k],e[k])); break
         elif abs(p[k]-e[k])>1e-9*max(1,abs(p[k])): bad.append((i,k,p[k],e[k])); break
 print(f'검사 {N}건 · 불일치 {len(bad)}건'); print(bad[:5])
-print(f'판정 분포 — 배관 부적합 {sum(1 for e in E if not e["pipePressOK"])}건 · 유속 초과 포함 {sum(1 for e in E if e["velOverN"])}건')
+print(f'판정 분포 — 배관 부적합 {sum(1 for e in E if not e["pipePressOK"])}건(그중 STS · CPVC 확인 필요 {sum(1 for e in E if e["pipeCheck"])}건) · 유속 초과 포함 {sum(1 for e in E if e["velOverN"])}건 · 별표 1 초과 포함 {sum(1 for e in E if e["tblOverN"])}건')

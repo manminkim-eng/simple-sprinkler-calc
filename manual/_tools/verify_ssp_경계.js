@@ -13,6 +13,13 @@ r=sspCalc({...base,actualHead:fJ(88).E,pipeType:"SCH40"},[seg({flow:50,dia:200})
 r=sspCalc({...base,actualHead:fJ(123).E,shutPress:1.19},[seg({flow:50,dia:200})]);ck('J 123 · 입력 체절 1.19 MPa → SCH10 적합(릴리프 등으로 1.2 미만)',r.shutUser&&!r.hiPress&&r.pipePressOK);
 r=sspCalc({...base,shutPress:1.25},[seg({flow:50,dia:200})]);ck('J '+r.J+' · 입력 체절 1.25 MPa → SCH10 부적합',r.shutUser&&r.hiPress&&!r.pipePressOK);
 r=sspCalc({...base,actualHead:fJ(88).E,shutPress:-1},[seg({flow:50,dia:200})]);ck('체절 음수 입력 → 정격 × 1.4 적용',!r.shutUser&&Math.abs(r.Pshut-r.Pdis*1.4)<1e-12);
+/* v6.1.4 — STS · CPVC 고압 「확인 필요」(pipeCheck · 표시 전용 — pipePressOK 불변) · 별표 1 「가」란 참고(tbl1 · tblOverN) */
+['STS','CPVC','SCH10','SCH40'].forEach(t=>{const q=sspCalc({...base,pipeType:t,shutPress:1.25},[seg({flow:50,dia:200})]);ck(t+' 체절 1.25 → pipePressOK '+q.pipePressOK+' · pipeCheck '+q.pipeCheck,q.pipePressOK===(t==='SCH40')&&q.pipeCheck===(t==='STS'||t==='CPVC'));});
+r=sspCalc({...base,pipeType:'STS',shutPress:1.19},[seg({flow:50,dia:200})]);ck('STS 체절 1.19 → 적합 · pipeCheck 없음',r.pipePressOK&&!r.pipeCheck);
+const t1=(k,q,d)=>sspCalc({...base,baseType:k},[seg({flow:q,dia:d})]);
+ck('25A 100 L/min = 헤드 2개 ≤ 2 → 이내',t1('A2',100,25).tblOverN===0&&t1('A2',100,25).tbl1[0].heads===2);ck('25A 101 L/min = 헤드 3개 > 2 → 참고',t1('A2',101,25).tblOverN===1);
+ck('125A 8000 L/min = 160개 이내 · 8001 → 161개 초과',t1('A2',8000,125).tblOverN===0&&t1('A2',8001,125).tblOverN===1);ck('150A 상한 없음',t1('A2',20000,150).tblOverN===0&&t1('A2',20000,150).tbl1[0].max===null);
+ck('주차장 유형 대조 생략(tbl1 null)',t1('AP2',1000,25).tbl1[0]===null&&t1('AP2',1000,25).tblOverN===0);
 const v=(q,k)=>sspCalc(base,[seg({kind:k,flow:q,dia:25})]).sdets[0];
 ck('가지 25A 215 L/min '+v(215,'br').vel.toFixed(3)+' ≤ 6',!v(215,'br').velOver);ck('가지 25A 216 L/min '+v(216,'br').vel.toFixed(3)+' > 6',v(216,'br').velOver);ck('교차·주 25A 216 L/min ≤ 10',!v(216,'oth').velOver);
 T.forEach(t=>console.log(t[1],t[0]));console.log(T.filter(t=>t[1]==='✓').length+' / '+T.length);
