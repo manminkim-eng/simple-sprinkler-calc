@@ -6,7 +6,7 @@
      간이스프링클러설비의 화재안전기술기준(NFTC 103A) 국립소방연구원공고 제2024-58호(2024. 12. 1. 시행) 2.1 · 2.2 · 2.3.1.7 · 2.5 · 2.6 · 2.9 · 2.11
      소방시설 설치 및 관리에 관한 법률 시행령 별표 4 제1호마목(2026. 9. 29. 개정)
    예제 수치는 캡처 때 앱 엔진(window.SSPENG.calc)으로 계산해 기록한 _example.json 에서 가져온다."""
-import os, sys, json, subprocess
+import re, os, sys, json, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from manual_engine import fig, T, render, B, MARKS
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -18,9 +18,10 @@ JS = r"""const fs=require('fs');const s=fs.readFileSync(process.argv[1],'utf8');
 const e=s.slice(a,s.indexOf('</script>',a));var window=globalThis;eval(e);console.log(JSON.stringify({PIPE_CONFIG,TRANS_TYPE,BASE_HEAD_TYPES}));"""
 D = json.loads(subprocess.check_output(['node', '-e', JS, APPHTML]))
 
-VER, REL, DATE = 'Ver-5.1', 'v6.1.4', '2026-10-16'
-UPD = '2026-11-24'   # v6.1.4 — A4 유속 열 · 별표 1 「가」란 참고 · STS · CPVC 「확인 필요」 · 적용 범위(교차검증 2026-11-23 권고) / v6.1.3 — 체절압력 기준 · 입력값 경고
-PDF = '간이스프링클러_사용자매뉴얼_Ver-5.1.pdf'
+VER, DATE = 'Ver-6.1', '2026-10-16'
+REL = 'v' + '.'.join(map(str, max(tuple(map(int, v.split('.'))) for v in re.findall(r'v(6\.\d+\.\d+)', open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'sw.js'), encoding='utf-8').read()))))   # 도구 판 = sw.js 캐시 판(2026-11-25 Ver-6.1 표기 통일)
+UPD = '2026-11-25'   # Ver-6.1 표기 통일(판 이름 · PDF 이름 · 대상 프로그램 판), 내용 변경 없음 — 직전 개정 2026-11-24
+PDF = '간이스프링클러_사용자매뉴얼_Ver-6.1.pdf'
 APP_URL = 'https://manminkim-eng.github.io/simple-sprinkler-calc/'
 APP = '간이스프링클러설비 펌프 용량 계산서'
 NFPC = '간이스프링클러설비의 화재안전성능기준(NFPC 103A) 소방청고시 제2025-25호(2026. 3. 1. 시행)'
@@ -96,7 +97,7 @@ S.append(f"""{EXTRA_CSS}<section class="ch" id="ch0"><h2><span class="n">00</spa
 {K(T([
  ['대상 프로그램', f'{APP} <b>MANMIN {VER}</b>({REL}) — 탭 막대 「📘 매뉴얼」 버튼으로 이 문서가 열립니다'],
  ['접속 주소', f'<a href="{APP_URL}" target="_blank" rel="noopener">manminkim-eng.github.io/simple-sprinkler-calc</a>'],
- ['매뉴얼 판', f'<b>{VER}</b> (화면 표기와 같은 판 번호, 초판 {DATE}) · 개정 {UPD} · 작성 김만민 건축사(㈜대성건축사사무소)'],
+ ['매뉴얼 판', f'<b>{VER}</b> (도구 판 6.1.x와 맞춘 판 번호, 초판 {DATE}) · 개정 {UPD} · 작성 김만민 건축사(㈜대성건축사사무소)'],
  ['내려받기', f'<a href="{PDF}" download>PDF(A4)</a> · <a href="../index.html">{APP} 열기</a>'],
  ['예제', f'본문 그림은 예제 A(익산 근린생활시설 — 바닥면적 800㎡ · 일반 2개 × 10분)로 캡처했습니다 — <b>토출량 {A["Clpm"]} L/min · 수원 {f3(A["D"])} m³ · 전양정 {A["J"]} m · {A["Php"]:g} HP</b>. 예제 B(근린생활 1천㎡ 이상 — 5개 × 20분) · C(부설 주차장 — 80 L/min)는 <a href="#a2">부록 A2</a>'],
  ['근거 법령', f'{LAW} — LawMCP(국가법령정보센터) 원문 대조({DATE})'],
@@ -328,8 +329,9 @@ S.append(f"""<section class="ch" id="ch7"><h2><span class="n">부록</span></h2>
 <p>세 예제 모두 체절압력(정격 × 1.4)이 1.2 MPa 미만이라 KS D 3507 「배관 적합」입니다. 별표 1 「가」란 참고는 예제 A(구간별 헤드 {' · '.join(str(t['heads']) for t in A['tbl1'])}개) · 예제 B({' · '.join(str(t['heads']) for t in Bx['tbl1'])}개) 모두 표 이내, 예제 C는 주차장 표준반응형 유형이라 대조를 생략합니다.</p>
 <h3 id="a3">A3. 버전 변경 내역</h3>
 {K(T([
- [f'Ver-5.1 · v6.1.4 ({UPD})', '교차검증 권고 반영 — A4 배관 마찰손실 상세표 「유속(m/s)」 열(한계 ≤ 6 · ≤ 10, 초과 ⚠)과 합계 줄 판정 · 구분 「기타」 → 「교차·주」(NFTC 103A 2.5.3.3 단서) · NFPC 103A 별표 1 「가」란 참고(화면 배관표 아래 · A4 표 아래, 제8조③ 택일 · 주차장 유형 생략) · 사용압력 1.2 MPa 이상 STS · CPVC 「배관 부적합」 → 「확인 필요」(NFTC 103A 2.5.1 본문 · NFPC 103A 제8조② · NFTC 103A 2.5.2, KS D 3507은 「부적합」 그대로) · 입력 머리 적용 범위 줄(펌프형 전용) · A4 비상전원 줄 「현행 영 별표 4 번호는 NFTC 표기와 일치」 — 수원 · 전양정 · 동력 · 기존 판정값 변경 없음'],
- ['Ver-5.1 · v6.1.3 (2026-11-24)', '교차검증 반영 — 배관 사용압력을 체절압력 기준으로 판정(S-1 체절압력 입력, 없으면 정격 × 1.4 · 소방청 법령해석 412390 · NFPC 103A 제5조②5호, 판정 경계 전양정 122.4 → 87.4 m, 예제 A · B · C 판정 변경 없음) · A4 S행 「J」 → 「I」 표기 정정 · 입력값 경고(실양정 · 체절압력 · 배관 구간 음수) · 첫 구간 유량 ≠ 토출량 확인 — 수원 · 전양정 · 동력 변경 없음'],
+ [f'Ver-6.1 · {REL} (2026-11-25)', '매뉴얼 판 표기 통일 — Ver-5.1 → Ver-6.1(도구 판 6.1.x와 맞춤) · PDF 이름 「…_Ver-6.1.pdf」 · 대상 프로그램 판 · 작성일 갱신 — 본문 · 계산 · 예제 변경 없음'],
+ ['Ver-6.1 · v6.1.4 (2026-11-24)', '교차검증 권고 반영 — A4 배관 마찰손실 상세표 「유속(m/s)」 열(한계 ≤ 6 · ≤ 10, 초과 ⚠)과 합계 줄 판정 · 구분 「기타」 → 「교차·주」(NFTC 103A 2.5.3.3 단서) · NFPC 103A 별표 1 「가」란 참고(화면 배관표 아래 · A4 표 아래, 제8조③ 택일 · 주차장 유형 생략) · 사용압력 1.2 MPa 이상 STS · CPVC 「배관 부적합」 → 「확인 필요」(NFTC 103A 2.5.1 본문 · NFPC 103A 제8조② · NFTC 103A 2.5.2, KS D 3507은 「부적합」 그대로) · 입력 머리 적용 범위 줄(펌프형 전용) · A4 비상전원 줄 「현행 영 별표 4 번호는 NFTC 표기와 일치」 — 수원 · 전양정 · 동력 · 기존 판정값 변경 없음'],
+ ['Ver-6.1 · v6.1.3 (2026-11-24)', '교차검증 반영 — 배관 사용압력을 체절압력 기준으로 판정(S-1 체절압력 입력, 없으면 정격 × 1.4 · 소방청 법령해석 412390 · NFPC 103A 제5조②5호, 판정 경계 전양정 122.4 → 87.4 m, 예제 A · B · C 판정 변경 없음) · A4 S행 「J」 → 「I」 표기 정정 · 입력값 경고(실양정 · 체절압력 · 배관 구간 음수) · 첫 구간 유량 ≠ 토출량 확인 — 수원 · 전양정 · 동력 변경 없음'],
  ['Ver-5.1 · v5.1.12 (2026-11-09)', '「🏢 건물개요」 저장 · 불러오기 — 공사명 · 설계자을(를) 다른 MANMIN 도구와 공유, 파일 내보내기 · 가져오기(공통 원본 MM-PROJECT v1.2, 계산 변경 없음)'],
  [f'Ver-5.1 · v5.1.0 ({DATE})', 'NFPC 103A(제2025-25호) · NFTC 103A(제2024-58호) · 시행령 별표 4 원문 대조 근거 정정, KS 강관 내경, 배관 압력 판정, 설비 방식 안내, 구간별 유속 판정, 비상전원 대상 두 기준 병기, MANMIN 참고값 표기, 계산 엔진 단일화, 「📘 매뉴얼」 · 사용자 매뉴얼(<a href="#s4-9">4-9</a>)'],
  ['Ver-5.0 (2026-09)', 'MANMIN 디자인 통일(헤더 · 탭 · 요약 바 · A4 · JPG 저장), PWA'],
